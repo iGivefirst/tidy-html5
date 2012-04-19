@@ -113,7 +113,7 @@ ifdef DMALLOC
 DEBUGFLAGS += -DDMALLOC
 endif
 
-LIBS=
+LIBS=-lpcre
 DEBUGLIBS=-ldmalloc
 
 # Tidy lib related variables

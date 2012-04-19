@@ -677,6 +677,9 @@ TIDY_EXPORT int TIDY_CALL         tidyParseSource( TidyDoc tdoc, TidyInputSource
 /** Execute configured cleanup and repair operations on parsed markup */
 TIDY_EXPORT int TIDY_CALL         tidyCleanAndRepair( TidyDoc tdoc );
 
+/** Excute prune on parsed markup in order to access article text */
+TIDY_EXPORT int TIDY_CALL         tidyPrune( TidyDoc tdoc );
+
 /** Run configured diagnostics on parsed and repaired markup. 
 **  Must call tidyCleanAndRepair() first.
 */

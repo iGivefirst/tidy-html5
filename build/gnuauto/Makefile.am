@@ -53,6 +53,7 @@
 #  acknowledgment is not required but would be appreciated.
 #
 
+ACLOCAL_AMFLAGS= -I m4
 SUBDIRS = src console include
 
 #TODO: Pull man page from htmldoc

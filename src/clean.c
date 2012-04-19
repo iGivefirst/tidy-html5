@@ -49,6 +49,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pcre.h>               /* PCRE lib        NONE  */
+
 
 #include "tidy-int.h"
 #include "clean.h"
@@ -60,6 +62,7 @@
 #include "utf8.h"
 
 static Node* CleanNode( TidyDocImpl* doc, Node *node );
+static Node* PruneNode( TidyDocImpl* doc, Node *node );
 
 static void RenameElem( TidyDocImpl* doc, Node* node, TidyTagId tid )
 {
@@ -1489,6 +1492,133 @@ Node* CleanNode( TidyDocImpl* doc, Node *node )
     return next;
 }
 
+/*
+ * Remove elements that have text inside them that are parts of divs
+ * , paragraphs or td's
+ */
+static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* node)
+{
+    Node *prev = NULL, *content;
+
+    /*
+    if(!nodeIsDIV(node->parent)|| !nodeIsP(node->parent) || !nodeIsTD(node->parent))
+        return no;
+    */
+    /* todo: what else */
+    if (nodeIsSPAN(node) || nodeIsADDRESS(node) ||
+            nodeIsEM(node) || nodeIsSTRONG(node) || nodeIsB(node)
+            || nodeIsI(node) || nodeIsFONT(node) || nodeIsSMALL(node)
+            || nodeIsSUB(node) || nodeIsSUP(node) || nodeIsPRE(node)
+            || nodeIsCODE(node)) {
+
+            content = node->content;
+
+            if (node->prev)
+            {
+                prev = node->prev;
+            } else if (content)
+            {
+                node = content;
+                content = content->next;
+                TY_(RemoveNode)(node);
+                TY_(InsertNodeBeforeElement)(node, node);
+                prev = node;
+            }
+
+            while (content)
+            {
+                node = content;
+                content = content->next;
+                TY_(RemoveNode)(node);
+                TY_(InsertNodeAfterElement)(prev, node);
+                prev = node;
+            }
+
+            if (node->next == NULL) node->parent->last = prev;
+
+            node = node->next;
+            node->content = NULL;
+            TY_(DiscardElement)( doc, node );
+            return yes;
+    }
+    return no;
+}
+
+static Bool PruneUneededNodes( TidyDocImpl* doc, Node* node)
+{
+    Node *prev = NULL, *content;
+    if(nodeIsSCRIPT(node))
+    {
+        //printf ("%s\n", node->attributes->attribute);
+        //TY_(RemoveNode)(node);
+        //TY_(FreeNode)(doc, node);
+        return yes;
+    }
+    return no;
+}
+
+/*
+ * remove stuff for text parsing
+ */
+Node* PruneNode( TidyDocImpl* doc, Node *node )
+{
+    Node *next = NULL;
+
+    for (next = node; TY_(nodeIsElement)(node); node = next)
+    {
+        /* Special case: true result means
+        ** that arg node and its parent no longer exist.
+        ** So we must jump back up the CreateStyleProperties()
+        ** call stack until we have a valid node reference.
+        */
+        if ( NestedList(doc, node, &next) )
+            return next;
+
+        if ( Center2Div(doc, node, &next) )
+            continue;
+
+        if ( MergeNestedElements(doc, TidyTag_DIV, TidyAutoState, node, &next) )
+            continue;
+
+        if ( MergeNestedElements(doc, TidyTag_SPAN, TidyAutoState, node, &next) )
+            continue;
+
+        /*
+        if ( StripElementsWrappingText(doc, node) )
+            continue;
+            */
+
+        /*
+        if ( PruneUneededNodes(doc, node) )
+            continue;
+        */
+        break;
+    }
+    /*
+    for (next = node; TY_(nodeIsElement)(node); node = next) {
+        if (Convert2P(doc,node,&next))
+            return next;
+    }*/
+
+
+    return next;
+}
+
+/*
+static Bool Convert2P( TidyDocImpl* doc, Node *node, Node **pnode)
+{
+    if ( nodeIsDIV(node) || nodeIsTD(node) )
+    {
+
+        RenameElem( doc, node, TidyTag_P );
+        return yes;
+    }
+
+    return no;
+}*/
+
+
+
 /* Special case: if the current node is destroyed by
 ** CleanNode() lower in the tree, this node and its parent
 ** no longer exist.  So we must jump back up the CleanTree()
@@ -1511,6 +1641,22 @@ static Node* CleanTree( TidyDocImpl* doc, Node *node )
     return CleanNode( doc, node );
 }
 
+static Node* PruneTree( TidyDocImpl* doc, Node *node )
+{
+    if (node->content)
+    {
+        Node *child;
+        for (child = node->content; child != NULL; child = child->next)
+        {
+            child = PruneTree( doc, child );
+            if ( !child )
+                break;
+        }
+    }
+
+    return PruneNode( doc, node );
+}
+
 static void DefineStyleRules( TidyDocImpl* doc, Node *node )
 {
     Node *child;
@@ -1525,6 +1671,11 @@ static void DefineStyleRules( TidyDocImpl* doc, Node *node )
     }
 
     Style2Rule( doc, node );
+}
+
+void TY_(PruneDocument)( TidyDocImpl* doc )
+{
+    PruneTree( doc, &doc->root );
 }
 
 void TY_(CleanDocument)( TidyDocImpl* doc )
@@ -2324,6 +2475,124 @@ void TY_(DropComments)(TidyDocImpl* doc, Node* node)
 
         node = next;
     }
+}
+
+Bool checkNodeForPruning(AttVal* id, int subStrVec[30], pcre *reCompiled, pcre_extra *pcreExtra) {
+
+    int pcreExecRet;
+
+    if(id == NULL)
+        return no;
+
+    pcreExecRet = pcre_exec(reCompiled, pcreExtra, id->value, strlen(id->value), 0, 0, subStrVec, 30);
+
+    if(pcreExecRet < 0)
+    { // Something bad happened..
+        switch(pcreExecRet) {
+        case PCRE_ERROR_NOMATCH      : break;
+        case PCRE_ERROR_NULL         : break;
+        default                      :
+            printf("ERROR: with regex, %i",pcreExecRet);
+            pcre_free(reCompiled);
+            exit(1);
+            break;
+        } /* end switch */
+    }
+    else
+    {
+        printf("matched: %s\n", id->value);
+        return yes;
+    }
+
+    return no;
+}
+
+void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
+{
+    pcre *reCompiled;
+    pcre_extra *pcreExtra;
+    int pcreExecRet;
+    int subStrVec[30];
+    const char *pcreErrorStr;
+    int pcreErrorOffset;
+    char *naugthIds, *naugthyCaptions,*naugtyGoogle,*naugtyMore,*naugtyFaceBook,*naugtyTwitter;
+    AttVal *id,*name,*class;
+
+    /* TODO only compile this once */
+    naugthIds = "^side$|combx|retweet|mediaarticlerelated|menucontainer|navbar|comment|PopularQuestions|contact|foot|footer|Footer|footnote|cnn_strycaptiontxt|links|meta$|scroll|shoutbox|sponsor|tags|socialnetworking|socialNetworking|cnnStryHghLght|cnn_stryspcvbx|^inset$|pagetools|post-attributes|welcome_form|contentTools2|the_answers|remember-tool-tip|communitypromo|runaroundLeft|subscribe|vcard|articleheadings|date|^print$|popup|author-dropdown|tools|socialtools|byline|konafilter|KonaFilter|breadcrumbs|^fn$|wp-caption-text";
+    /* TODO factor this in too */
+    naugthyCaptions = "^caption$";
+    naugtyGoogle = " google ";
+    naugtyMore = "^[^entry-]more.*$";
+    naugtyFaceBook = "[^-]facebook";
+    naugtyTwitter = "[^-]twitter";
+
+
+    reCompiled = pcre_compile(naugthIds, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
+    // pcre_compile returns NULL on error, and sets pcreErrorOffset & pcreErrorStr
+    if(reCompiled == NULL) {
+      printf("ERROR: Could not compile: %s\n", pcreErrorStr);
+      exit(1);
+    } /* end if */
+
+    // Optimize the regex
+    pcreExtra = pcre_study(reCompiled, 0, &pcreErrorStr);
+
+    /* pcre_study() returns NULL for both errors and when it can not optimize
+       the regex.  The last argument is how one checks for errors (it is NULL
+       if everything works, and points to an error string otherwise. */
+    if(pcreErrorStr != NULL) {
+      printf("ERROR: Could not study: %s\n", pcreErrorStr);
+      exit(1);
+    } /* end if */
+
+    Node* next;
+
+    while (node)
+    {
+        next = node->next;
+
+        if (nodeIsSCRIPT(node) || nodeIsCOMMENT(node) || nodeIsSTYLE(node) ||
+                nodeIsLINK(node) || nodeIsIMG(node))
+        {
+            TY_(RemoveNode)(node);
+            TY_(FreeNode)(doc, node);
+            node = next;
+            continue;
+        }
+
+        id = TY_(AttrGetById)(node,TidyAttr_ID);
+        class = TY_(AttrGetById)(node,TidyAttr_CLASS);
+        name = TY_(AttrGetById)(node,TidyAttr_NAME);
+
+        if (checkNodeForPruning(id,subStrVec,reCompiled,pcreExtra)||
+                checkNodeForPruning(class,subStrVec,reCompiled,pcreExtra)||
+                checkNodeForPruning(name,subStrVec,reCompiled,pcreExtra))
+        {
+                TY_(RemoveNode)(node);
+                TY_(FreeNode)(doc, node);
+                node = next;
+                continue;
+        }
+
+        if (node->content)
+            TY_(DropForPruning)(doc, node->content);
+
+        node = next;
+    }
+
+    if(reCompiled!=NULL)
+        pcre_free(reCompiled);
+
+    /* TODO do we need to do this??
+    if(id!=NULL)
+        free(id);
+        */
+
+      // Free up the EXTRA PCRE value (may be NULL at this point)
+    if(pcreExtra != NULL)
+        pcre_free(pcreExtra);
+
 }
 
 void TY_(DropFontElements)(TidyDocImpl* doc, Node* node, Node **ARG_UNUSED(pnode))

@@ -995,6 +995,9 @@ int main( int argc, char** argv )
             else if ( strcasecmp(arg,   "ashtml") == 0 )
                 tidyOptSetBool( tdoc, TidyHtmlOut, yes );
 
+            else if ( strcasecmp(arg,   "prune") == 0 )
+                tidyOptSetBool( tdoc, TidyPrune, yes );
+
             else if ( strcasecmp(arg, "indent") == 0 )
             {
                 tidyOptSetInt( tdoc, TidyIndentContent, TidyAutoState );
@@ -1277,6 +1280,9 @@ int main( int argc, char** argv )
 
         if ( status >= 0 )
             status = tidyRunDiagnostics( tdoc );
+
+        if (status >= 0  && tidyOptGetBool(tdoc, TidyPrune))
+            status = tidyPrune(tdoc);
 
         if ( status > 1 ) /* If errors, do we want to force output? */
             status = ( tidyOptGetBool(tdoc, TidyForceOutput) ? status : -1 );

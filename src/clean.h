@@ -24,6 +24,9 @@ void TY_(AddStyleProperty)(TidyDocImpl* doc, Node *node, ctmbstr property );
 
 void TY_(CleanDocument)( TidyDocImpl* doc );
 
+void TY_(PruneDocument)( TidyDocImpl* doc );
+void TY_(DropForPruning)(TidyDocImpl* doc, Node* node);
+
 /* simplifies <b><b> ... </b> ...</b> etc. */
 void TY_(NestedEmphasis)( TidyDocImpl* doc, Node* node );
 
@@ -70,6 +73,7 @@ void TY_(FixBrakes)( TidyDocImpl* pDoc, Node *pParent );
 #endif
 
 void TY_(VerifyHTTPEquiv)( TidyDocImpl* pDoc, Node *pParent );
+
 
 void TY_(DropComments)(TidyDocImpl* doc, Node* node);
 void TY_(DropFontElements)(TidyDocImpl* doc, Node* node, Node **pnode);

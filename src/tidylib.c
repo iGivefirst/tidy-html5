@@ -1133,6 +1133,7 @@ int TIDY_CALL        tidyCleanAndRepair( TidyDoc tdoc )
     return -EINVAL;
 }
 
+
 int TIDY_CALL        tidyRunDiagnostics( TidyDoc tdoc )
 {
     TidyDocImpl* impl = tidyDocToImpl( tdoc );
@@ -1231,6 +1232,25 @@ int         tidyDocRunDiagnostics( TidyDocImpl* doc )
         TY_(NeedsAuthorIntervention)( doc );
 
      return tidyDocStatus( doc );
+}
+
+
+int         tidyPruneDoc( TidyDocImpl* doc )
+{
+    TY_(NestedEmphasis)( doc, &doc->root );
+    TY_(DropForPruning)(doc, &doc->root);
+    TY_(DropSections)( doc, &doc->root );
+    TY_(PruneDocument)( doc );
+    TY_(DropEmptyElements)(doc, &doc->root);
+    return tidyDocStatus( doc );
+}
+
+int TIDY_CALL        tidyPrune( TidyDoc tdoc )
+{
+    TidyDocImpl* impl = tidyDocToImpl( tdoc );
+    if ( impl )
+      return tidyPruneDoc( impl );
+    return -EINVAL;
 }
 
 int         tidyDocCleanAndRepair( TidyDocImpl* doc )

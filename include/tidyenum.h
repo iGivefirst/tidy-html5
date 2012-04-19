@@ -209,6 +209,7 @@ typedef enum
   TidySortAttributes,      /**< Sort attributes */
   TidyMergeSpans,       /**< Merge multiple SPANs */
   TidyAnchorAsName,    /**< Define anchors as name attributes */
+  TidyPrune,           /**< Prune HTML document in order for effective text parsing */
   N_TIDY_OPTIONS       /**< Must be last */
 } TidyOptionId;
 
