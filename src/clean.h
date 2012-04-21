@@ -1,6 +1,7 @@
 #ifndef __CLEAN_H__
 #define __CLEAN_H__
 
+
 /* clean.h -- clean up misuse of presentation markup
 
   (c) 1998-2006 (W3C) MIT, ERCIM, Keio University
@@ -12,6 +13,7 @@
     $Revision: 1.14 $ 
 
 */
+#include <pcre.h>               /* PCRE lib        NONE  */
 
 void TY_(FixNodeLinks)(Node *node);
 
@@ -88,4 +90,20 @@ void TY_(FixXhtmlNamespace)(TidyDocImpl* doc, Bool wantXmlns);
 void TY_(FixLanguageInformation)(TidyDocImpl* doc, Node* node, Bool wantXmlLang, Bool wantLang);
 
 
+typedef struct _tidy_pcre_regex
+{
+    pcre* reCompiled;
+    pcre_extra* pcreExtra;
+    const char* regex;
+} TidyPcreRegex;
+
+typedef struct _tidy_pcre_group
+{
+    TidyPcreRegex *naughtyIds;
+    TidyPcreRegex *facebook;
+    TidyPcreRegex *twitter;
+    TidyPcreRegex *google;
+    TidyPcreRegex *caption;
+    TidyPcreRegex *entry;
+} TidyPcreGroup;
 #endif /* __CLEAN_H__ */

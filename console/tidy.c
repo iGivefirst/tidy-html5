@@ -1281,7 +1281,7 @@ int main( int argc, char** argv )
         if ( status >= 0 )
             status = tidyRunDiagnostics( tdoc );
 
-        if (status >= 0  && tidyOptGetBool(tdoc, TidyPrune))
+        if (tidyOptGetBool(tdoc, TidyPrune))
             status = tidyPrune(tdoc);
 
         if ( status > 1 ) /* If errors, do we want to force output? */

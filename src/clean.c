@@ -1546,7 +1546,6 @@ static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* node)
 
 static Bool PruneUneededNodes( TidyDocImpl* doc, Node* node)
 {
-    Node *prev = NULL, *content;
     if(nodeIsSCRIPT(node))
     {
         //printf ("%s\n", node->attributes->attribute);
@@ -2477,14 +2476,19 @@ void TY_(DropComments)(TidyDocImpl* doc, Node* node)
     }
 }
 
-Bool checkNodeForPruning(AttVal* id, int subStrVec[30], pcre *reCompiled, pcre_extra *pcreExtra) {
-
+Bool checkNodeForPruning(AttVal* id, TidyPcreRegex* tidyPcreRegex)
+{
+    int subStrVec[30];
     int pcreExecRet;
 
     if(id == NULL)
         return no;
 
-    pcreExecRet = pcre_exec(reCompiled, pcreExtra, id->value, strlen(id->value), 0, 0, subStrVec, 30);
+    if(id->value == NULL)
+        return no;
+
+    pcreExecRet = pcre_exec(tidyPcreRegex->reCompiled, tidyPcreRegex->pcreExtra,
+            id->value, strlen(id->value), 0, 0, subStrVec, 30);
 
     if(pcreExecRet < 0)
     { // Something bad happened..
@@ -2493,58 +2497,43 @@ Bool checkNodeForPruning(AttVal* id, int subStrVec[30], pcre *reCompiled, pcre_e
         case PCRE_ERROR_NULL         : break;
         default                      :
             printf("ERROR: with regex, %i",pcreExecRet);
-            pcre_free(reCompiled);
             exit(1);
             break;
         } /* end switch */
     }
     else
     {
-        printf("matched: %s\n", id->value);
         return yes;
     }
 
     return no;
 }
 
-void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
-{
-    pcre *reCompiled;
-    pcre_extra *pcreExtra;
-    int pcreExecRet;
-    int subStrVec[30];
+TidyPcreRegex* createRegex(const char* regex) {
+
     const char *pcreErrorStr;
     int pcreErrorOffset;
-    char *naugthIds, *naugthyCaptions,*naugtyGoogle,*naugtyMore,*naugtyFaceBook,*naugtyTwitter;
-    AttVal *id,*name,*class;
 
-    /* TODO only compile this once */
-    naugthIds = "^side$|combx|retweet|mediaarticlerelated|menucontainer|navbar|comment|PopularQuestions|contact|foot|footer|Footer|footnote|cnn_strycaptiontxt|links|meta$|scroll|shoutbox|sponsor|tags|socialnetworking|socialNetworking|cnnStryHghLght|cnn_stryspcvbx|^inset$|pagetools|post-attributes|welcome_form|contentTools2|the_answers|remember-tool-tip|communitypromo|runaroundLeft|subscribe|vcard|articleheadings|date|^print$|popup|author-dropdown|tools|socialtools|byline|konafilter|KonaFilter|breadcrumbs|^fn$|wp-caption-text";
-    /* TODO factor this in too */
-    naugthyCaptions = "^caption$";
-    naugtyGoogle = " google ";
-    naugtyMore = "^[^entry-]more.*$";
-    naugtyFaceBook = "[^-]facebook";
-    naugtyTwitter = "[^-]twitter";
+    TidyPcreRegex *tidyPcreRegex = (TidyPcreRegex*) TidyAlloc(&TY_(g_default_allocator), sizeof(TidyPcreRegex));
+    tidyPcreRegex->regex = regex;
+    tidyPcreRegex->reCompiled = pcre_compile(regex, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
 
+    if(tidyPcreRegex->reCompiled == NULL) {
+         printf("ERROR: Could not compile: %s\n", pcreErrorStr);
+         exit(1);
+    }
+    tidyPcreRegex->pcreExtra = pcre_study(tidyPcreRegex->reCompiled, 0, &pcreErrorStr);
 
-    reCompiled = pcre_compile(naugthIds, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
-    // pcre_compile returns NULL on error, and sets pcreErrorOffset & pcreErrorStr
-    if(reCompiled == NULL) {
-      printf("ERROR: Could not compile: %s\n", pcreErrorStr);
-      exit(1);
-    } /* end if */
-
-    // Optimize the regex
-    pcreExtra = pcre_study(reCompiled, 0, &pcreErrorStr);
-
-    /* pcre_study() returns NULL for both errors and when it can not optimize
-       the regex.  The last argument is how one checks for errors (it is NULL
-       if everything works, and points to an error string otherwise. */
-    if(pcreErrorStr != NULL) {
+    if(tidyPcreRegex->pcreExtra == NULL) {
       printf("ERROR: Could not study: %s\n", pcreErrorStr);
       exit(1);
-    } /* end if */
+    }
+
+    return tidyPcreRegex;
+}
+
+void dropForPruning(TidyDocImpl* doc, Node* node,TidyPcreGroup* tidyPcreGroup) {
+    AttVal *id,*name,*class;
 
     Node* next;
 
@@ -2565,9 +2554,9 @@ void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
         class = TY_(AttrGetById)(node,TidyAttr_CLASS);
         name = TY_(AttrGetById)(node,TidyAttr_NAME);
 
-        if (checkNodeForPruning(id,subStrVec,reCompiled,pcreExtra)||
-                checkNodeForPruning(class,subStrVec,reCompiled,pcreExtra)||
-                checkNodeForPruning(name,subStrVec,reCompiled,pcreExtra))
+        if (checkNodeForPruning(id,tidyPcreGroup->naughtyIds)||
+                checkNodeForPruning(class,tidyPcreGroup->naughtyIds)||
+                checkNodeForPruning(name,tidyPcreGroup->naughtyIds))
         {
                 TY_(RemoveNode)(node);
                 TY_(FreeNode)(doc, node);
@@ -2576,23 +2565,38 @@ void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
         }
 
         if (node->content)
-            TY_(DropForPruning)(doc, node->content);
+            dropForPruning(doc, node->content, tidyPcreGroup);
 
         node = next;
     }
 
-    if(reCompiled!=NULL)
-        pcre_free(reCompiled);
+}
+void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
+{
+    const char* NAUGHTY_IDS = "^side$|combx|retweet|mediaarticlerelated|menucontainer|navbar|comment|PopularQuestions|contact|foot|footer|Footer|footnote|cnn_strycaptiontxt|links|meta$|scroll|shoutbox|sponsor|tags|socialnetworking|socialNetworking|cnnStryHghLght|cnn_stryspcvbx|^inset$|pagetools|post-attributes|welcome_form|contentTools2|the_answers|remember-tool-tip|communitypromo|runaroundLeft|subscribe|vcard|articleheadings|date|^print$|popup|author-dropdown|tools|socialtools|byline|konafilter|KonaFilter|breadcrumbs|^fn$|wp-caption-text";
+    const char* CAPTION = "^caption$";
+    const char* GOOGLE = " google ";
+    const char* ENTRY = "^[^entry-]more.*$";
+    const char* FACEBOOK = "[^-]facebook";
+    const char* TWITTER = "[^-]twitter";
 
-    /* TODO do we need to do this??
-    if(id!=NULL)
-        free(id);
-        */
+    TidyPcreGroup *tidyPcreGroup = (TidyPcreGroup*) TidyAlloc(&TY_(g_default_allocator), sizeof(TidyPcreGroup));
+    tidyPcreGroup->naughtyIds = createRegex(NAUGHTY_IDS);
+    tidyPcreGroup->caption = createRegex(CAPTION);
+    tidyPcreGroup->entry = createRegex(ENTRY);
+    tidyPcreGroup->facebook = createRegex(FACEBOOK);
+    tidyPcreGroup->twitter = createRegex(TWITTER);
+    tidyPcreGroup->google = createRegex(GOOGLE);
 
-      // Free up the EXTRA PCRE value (may be NULL at this point)
-    if(pcreExtra != NULL)
-        pcre_free(pcreExtra);
+    dropForPruning(doc,node,tidyPcreGroup);
 
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->naughtyIds);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->caption);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->entry);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->facebook);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->twitter);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup->google);
+    TidyFree(&TY_(g_default_allocator),tidyPcreGroup);
 }
 
 void TY_(DropFontElements)(TidyDocImpl* doc, Node* node, Node **ARG_UNUSED(pnode))
