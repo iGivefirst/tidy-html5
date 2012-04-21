@@ -1544,18 +1544,6 @@ static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* node)
     return no;
 }
 
-static Bool PruneUneededNodes( TidyDocImpl* doc, Node* node)
-{
-    if(nodeIsSCRIPT(node))
-    {
-        //printf ("%s\n", node->attributes->attribute);
-        //TY_(RemoveNode)(node);
-        //TY_(FreeNode)(doc, node);
-        return yes;
-    }
-    return no;
-}
-
 /*
  * remove stuff for text parsing
  */
@@ -1582,15 +1570,6 @@ Node* PruneNode( TidyDocImpl* doc, Node *node )
         if ( MergeNestedElements(doc, TidyTag_SPAN, TidyAutoState, node, &next) )
             continue;
 
-        /*
-        if ( StripElementsWrappingText(doc, node) )
-            continue;
-            */
-
-        /*
-        if ( PruneUneededNodes(doc, node) )
-            continue;
-        */
         break;
     }
     /*
@@ -2475,8 +2454,7 @@ void TY_(DropComments)(TidyDocImpl* doc, Node* node)
         node = next;
     }
 }
-
-Bool checkNodeForPruning(AttVal* id, TidyPcreRegex* tidyPcreRegex)
+Bool prune(AttVal* id, TidyPcreRegex* tidyPcreRegex)
 {
     int subStrVec[30];
     int pcreExecRet;
@@ -2507,6 +2485,37 @@ Bool checkNodeForPruning(AttVal* id, TidyPcreRegex* tidyPcreRegex)
     }
 
     return no;
+}
+
+Bool checkNodeForPruning(AttVal* attVal, TidyPcreGroup* tidyPcreGroup)
+{
+
+    if(attVal == NULL)
+        return no;
+
+    if(attVal->value == NULL)
+        return no;
+
+   if(attrIsNAME(attVal)) {
+      return prune(attVal,tidyPcreGroup->naughtyIds);
+   }
+
+
+   if(attrIsID(attVal) || attrIsCLASS(attVal)) {
+      if(prune(attVal,tidyPcreGroup->naughtyIds))
+          return yes;
+      if(prune(attVal,tidyPcreGroup->entry))
+          return yes;
+      if(prune(attVal,tidyPcreGroup->facebook))
+          return yes;
+      if(prune(attVal,tidyPcreGroup->twitter))
+          return yes;
+      if(prune(attVal,tidyPcreGroup->caption))
+          return yes;
+      return (prune(attVal,tidyPcreGroup->google));
+   }
+
+   return no;
 }
 
 TidyPcreRegex* createRegex(const char* regex) {
@@ -2554,9 +2563,10 @@ void dropForPruning(TidyDocImpl* doc, Node* node,TidyPcreGroup* tidyPcreGroup) {
         class = TY_(AttrGetById)(node,TidyAttr_CLASS);
         name = TY_(AttrGetById)(node,TidyAttr_NAME);
 
-        if (checkNodeForPruning(id,tidyPcreGroup->naughtyIds)||
-                checkNodeForPruning(class,tidyPcreGroup->naughtyIds)||
-                checkNodeForPruning(name,tidyPcreGroup->naughtyIds))
+        if (checkNodeForPruning(id,tidyPcreGroup)||
+                checkNodeForPruning(class,tidyPcreGroup)||
+                checkNodeForPruning(name,tidyPcreGroup)
+                )
         {
                 TY_(RemoveNode)(node);
                 TY_(FreeNode)(doc, node);

@@ -1920,8 +1920,7 @@ ptAttValComparator GetAttValComparator(TidyAttrSortStrategy strat)
 }
 
 /* The sort routine */
-static
-AttVal *SortAttVal( AttVal *list, TidyAttrSortStrategy strat)
+static AttVal *SortAttVal( AttVal *list, TidyAttrSortStrategy strat)
 {
     ptAttValComparator ptComparator = GetAttValComparator(strat);
     AttVal *p, *q, *e, *tail;
