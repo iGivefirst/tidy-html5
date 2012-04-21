@@ -185,7 +185,6 @@ fi
 
 AC_SUBST(REGEX_LIBS)
 
-
 AC_MSG_NOTICE([
 
  REGEX libraries:             $REGEX_LIBS
