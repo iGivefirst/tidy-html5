@@ -2600,6 +2600,25 @@ void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
 
     dropForPruning(doc,node,tidyPcreGroup);
 
+    pcre_free(tidyPcreGroup->naughtyIds->pcreExtra);
+    pcre_free(tidyPcreGroup->naughtyIds->reCompiled);
+
+    /* TODO do we need to do a free on the char*? */
+    pcre_free(tidyPcreGroup->caption->pcreExtra);
+    pcre_free(tidyPcreGroup->caption->reCompiled);
+
+    pcre_free(tidyPcreGroup->facebook->pcreExtra);
+    pcre_free(tidyPcreGroup->facebook->reCompiled);
+
+    pcre_free(tidyPcreGroup->twitter->pcreExtra);
+    pcre_free(tidyPcreGroup->twitter->reCompiled);
+
+    pcre_free(tidyPcreGroup->google->pcreExtra);
+    pcre_free(tidyPcreGroup->google->reCompiled);
+
+    pcre_free(tidyPcreGroup->entry->pcreExtra);
+    pcre_free(tidyPcreGroup->entry->reCompiled);
+
     TidyFree(&TY_(g_default_allocator),tidyPcreGroup->naughtyIds);
     TidyFree(&TY_(g_default_allocator),tidyPcreGroup->caption);
     TidyFree(&TY_(g_default_allocator),tidyPcreGroup->entry);
