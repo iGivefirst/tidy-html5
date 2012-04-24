@@ -49,7 +49,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pcre.h>               /* PCRE lib        NONE  */
+/* todo add if test to include pcre */
+#include <pcre.h>               /* PCRE lib        */
 
 
 #include "tidy-int.h"
@@ -1492,57 +1493,52 @@ Node* CleanNode( TidyDocImpl* doc, Node *node )
     return next;
 }
 
-/*
- * Remove elements that have text inside them that are parts of divs
- * , paragraphs or td's
- */
-static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* node)
+static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* span)
 {
-    Node *prev = NULL, *content;
+    Node *node, *prev = NULL, *content;
 
     /*
-    if(!nodeIsDIV(node->parent)|| !nodeIsP(node->parent) || !nodeIsTD(node->parent))
-        return no;
+     deal with span elements that have content
+     by splicing the content in place of the span
+     after having processed it
     */
-    /* todo: what else */
-    if (nodeIsSPAN(node) || nodeIsADDRESS(node) ||
-            nodeIsEM(node) || nodeIsSTRONG(node) || nodeIsB(node)
-            || nodeIsI(node) || nodeIsFONT(node) || nodeIsSMALL(node)
-            || nodeIsSUB(node) || nodeIsSUP(node) || nodeIsPRE(node)
-            || nodeIsCODE(node)) {
 
-            content = node->content;
+    /* todo what else?? */
+    if ( nodeIsSPAN(node) || nodeIsEM(node) || nodeIsI(node) || nodeIsSTRONG(node)) {
 
-            if (node->prev)
-            {
-                prev = node->prev;
-            } else if (content)
-            {
-                node = content;
-                content = content->next;
-                TY_(RemoveNode)(node);
-                TY_(InsertNodeBeforeElement)(node, node);
-                prev = node;
-            }
+        content = span->content;
 
-            while (content)
-            {
-                node = content;
-                content = content->next;
-                TY_(RemoveNode)(node);
-                TY_(InsertNodeAfterElement)(prev, node);
-                prev = node;
-            }
+        if (span->prev)
+            prev = span->prev;
+        else if (content)
+        {
+            node = content;
+            content = content->next;
+            TY_(RemoveNode)(node);
+            TY_(InsertNodeBeforeElement)(span, node);
+            prev = node;
+        }
 
-            if (node->next == NULL) node->parent->last = prev;
+        while (content)
+        {
+            node = content;
+            content = content->next;
+            TY_(RemoveNode)(node);
+            TY_(InsertNodeAfterElement)(prev, node);
+            prev = node;
+        }
 
-            node = node->next;
-            node->content = NULL;
-            TY_(DiscardElement)( doc, node );
-            return yes;
+        if (span->next == NULL)
+            span->parent->last = prev;
+
+        node = span->next;
+        span->content = NULL;
+        TY_(DiscardElement)( doc, span );
+        return yes;
     }
     return no;
 }
+
 
 /*
  * remove stuff for text parsing
@@ -1561,13 +1557,13 @@ Node* PruneNode( TidyDocImpl* doc, Node *node )
         if ( NestedList(doc, node, &next) )
             return next;
 
-        if ( Center2Div(doc, node, &next) )
-            continue;
-
         if ( MergeNestedElements(doc, TidyTag_DIV, TidyAutoState, node, &next) )
             continue;
 
         if ( MergeNestedElements(doc, TidyTag_SPAN, TidyAutoState, node, &next) )
+            continue;
+
+        if ( StripElementsWrappingText( doc,node) )
             continue;
 
         break;
@@ -1913,6 +1909,8 @@ static void PurgeWord2000Attributes( TidyDocImpl* doc, Node* node )
             prev = attr;
     }
 }
+
+
 
 /* Word2000 uses span excessively, so we strip span out */
 static Node* StripSpan( TidyDocImpl* doc, Node* span )
