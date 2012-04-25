@@ -1541,8 +1541,6 @@ static Node* StripElementsWrappingText( TidyDocImpl* doc, Node* span)
  */
 static void PruneNode( TidyDocImpl* doc, Node *node )
 {
-    Node *next = NULL;
-
     while(node)
     {
 
