@@ -1237,12 +1237,9 @@ int         tidyDocRunDiagnostics( TidyDocImpl* doc )
 
 int tidyPruneDoc( TidyDocImpl* doc )
 {
-    TY_(NestedEmphasis)( doc, &doc->root );
     TY_(DropForPruning)(doc, &doc->root);
     TY_(DropSections)( doc, &doc->root );
     TY_(PruneDocument)( doc );
-    TY_(DropEmptyElements)(doc, &doc->root);
-    TY_(NormalizeSpaces)(doc->lexer, &doc->root);
     return tidyDocStatus(doc);
 }
 

@@ -1554,8 +1554,20 @@ static void PruneNode( TidyDocImpl* doc, Node *node )
               continue;
         }
 
+        if ( node->content == NULL && nodeIsDIV(node))
+        {
+            /*  Use the existing function to ensure consistency */
+            Node *next = TY_(TrimEmptyElement)( doc, node );
+            node = next;
+            continue;
+        }
+
+        if ( nodeIsDIV(node) )
+            RenameElem( doc, node, TidyTag_P );
+
         if(node->content)
             PruneNode(doc, node->content);
+
 
         node = node->next;
     }
@@ -1565,21 +1577,6 @@ static void PruneNode( TidyDocImpl* doc, Node *node )
             return next;
     }*/
 }
-
-/*
-static Bool Convert2P( TidyDocImpl* doc, Node *node, Node **pnode)
-{
-    if ( nodeIsDIV(node) || nodeIsTD(node) )
-    {
-
-        RenameElem( doc, node, TidyTag_P );
-        return yes;
-    }
-
-    return no;
-}*/
-
-
 
 /* Special case: if the current node is destroyed by
 ** CleanNode() lower in the tree, this node and its parent
@@ -1619,8 +1616,25 @@ static void DefineStyleRules( TidyDocImpl* doc, Node *node )
     Style2Rule( doc, node );
 }
 
+Node* CollapseNodes( TidyDocImpl* doc, Node *node )
+{
+    Node *next = NULL;
+    TidyTriState mergeDivs = yes;
+
+    for (next = node; TY_(nodeIsElement)(node); node = next)
+    {
+        if ( MergeNestedElements(doc, TidyTag_DIV, mergeDivs, node, &next) )
+            continue;
+
+        break;
+    }
+
+    return next;
+}
+
 void TY_(PruneDocument)( TidyDocImpl* doc )
 {
+    CollapseNodes(doc, &doc->root);
     PruneNode(doc, &doc->root);
 }
 
@@ -2555,7 +2569,8 @@ void TY_(DropForPruning)(TidyDocImpl* doc, Node* node)
 {
     const char* NAUGHTY_IDS = "^side$|combx|retweet|mediaarticlerelated|menucontainer|navbar|comment|PopularQuestions|contact|foot|footer|Footer|footnote|cnn_strycaptiontxt|links|meta$|scroll|shoutbox|sponsor|tags|socialnetworking|socialNetworking|cnnStryHghLght|cnn_stryspcvbx|^inset$|pagetools|post-attributes|welcome_form|contentTools2|the_answers|remember-tool-tip|communitypromo|runaroundLeft|subscribe|vcard|articleheadings|date|^print$|popup|author-dropdown|tools|socialtools|byline|konafilter|KonaFilter|breadcrumbs|^fn$|wp-caption-text";
     /* todo any reason not to combine these ? */
-    const char* CAPTION = "^caption$";
+    /* todo test that adding this drop cap works */
+    const char* CAPTION = "^caption$|span[class~=(dropcap|drop_cap)]";
     const char* GOOGLE = " google ";
     const char* ENTRY = "^[^entry-]more.*$";
     const char* FACEBOOK = "[^-]facebook";
