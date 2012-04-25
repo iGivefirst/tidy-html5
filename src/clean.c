@@ -63,7 +63,7 @@
 #include "utf8.h"
 
 static Node* CleanNode( TidyDocImpl* doc, Node *node );
-static Node* PruneNode( TidyDocImpl* doc, Node *node );
+static void PruneNode( TidyDocImpl* doc, Node *node );
 
 static void RenameElem( TidyDocImpl* doc, Node* node, TidyTagId tid )
 {
@@ -1493,7 +1493,7 @@ Node* CleanNode( TidyDocImpl* doc, Node *node )
     return next;
 }
 
-static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* span)
+static Node* StripElementsWrappingText( TidyDocImpl* doc, Node* span)
 {
     Node *node, *prev = NULL, *content;
 
@@ -1503,79 +1503,69 @@ static Bool StripElementsWrappingText( TidyDocImpl* doc, Node* span)
      after having processed it
     */
 
-    /* todo what else?? */
-    if ( nodeIsSPAN(node) || nodeIsEM(node) || nodeIsI(node) || nodeIsSTRONG(node)) {
+    content = span->content;
 
-        content = span->content;
+    if (span->prev)
+        prev = span->prev;
 
-        if (span->prev)
-            prev = span->prev;
-        else if (content)
-        {
-            node = content;
-            content = content->next;
-            TY_(RemoveNode)(node);
-            TY_(InsertNodeBeforeElement)(span, node);
-            prev = node;
-        }
-
-        while (content)
-        {
-            node = content;
-            content = content->next;
-            TY_(RemoveNode)(node);
-            TY_(InsertNodeAfterElement)(prev, node);
-            prev = node;
-        }
-
-        if (span->next == NULL)
-            span->parent->last = prev;
-
-        node = span->next;
-        span->content = NULL;
-        TY_(DiscardElement)( doc, span );
-        return yes;
+    else if (content)
+    {
+        node = content;
+        content = content->next;
+        TY_(RemoveNode)(node);
+        TY_(InsertNodeBeforeElement)(span, node);
+        prev = node;
     }
-    return no;
+
+    while (content)
+    {
+        node = content;
+        content = content->next;
+        TY_(RemoveNode)(node);
+        TY_(InsertNodeAfterElement)(prev, node);
+        prev = node;
+    }
+
+    if (span->next == NULL)
+        span->parent->last = prev;
+
+    node = span->next;
+    span->content = NULL;
+    TY_(DiscardElement)( doc, span );
+    return node;
 }
 
 
 /*
  * remove stuff for text parsing
  */
-Node* PruneNode( TidyDocImpl* doc, Node *node )
+static void PruneNode( TidyDocImpl* doc, Node *node )
 {
     Node *next = NULL;
 
-    for (next = node; TY_(nodeIsElement)(node); node = next)
+    while(node)
     {
-        /* Special case: true result means
-        ** that arg node and its parent no longer exist.
-        ** So we must jump back up the CreateStyleProperties()
-        ** call stack until we have a valid node reference.
-        */
-        if ( NestedList(doc, node, &next) )
-            return next;
 
-        if ( MergeNestedElements(doc, TidyTag_DIV, TidyAutoState, node, &next) )
-            continue;
+        if ( nodeIsSPAN(node) || nodeIsEM(node) || nodeIsI(node) || nodeIsSTRONG(node)
+                || nodeIsB(node) || nodeIsBIG(node) || nodeIsSMALL(node)
+                || nodeIsCODE(node) || nodeIsCENTER(node) || nodeIsSUP(node)
+                || nodeIsSUB(node) || nodeIsS(node) || nodeIsSTRIKE(node)
+                || nodeIsFONT(node))
+        {
+              node = StripElementsWrappingText(doc,node);
+              continue;
+        }
 
-        if ( MergeNestedElements(doc, TidyTag_SPAN, TidyAutoState, node, &next) )
-            continue;
+        if(node->content)
+            PruneNode(doc, node->content);
 
-        if ( StripElementsWrappingText( doc,node) )
-            continue;
-
-        break;
+        node = node->next;
     }
     /*
     for (next = node; TY_(nodeIsElement)(node); node = next) {
         if (Convert2P(doc,node,&next))
             return next;
     }*/
-
-
-    return next;
 }
 
 /*
@@ -1615,22 +1605,6 @@ static Node* CleanTree( TidyDocImpl* doc, Node *node )
     return CleanNode( doc, node );
 }
 
-static Node* PruneTree( TidyDocImpl* doc, Node *node )
-{
-    if (node->content)
-    {
-        Node *child;
-        for (child = node->content; child != NULL; child = child->next)
-        {
-            child = PruneTree( doc, child );
-            if ( !child )
-                break;
-        }
-    }
-
-    return PruneNode( doc, node );
-}
-
 static void DefineStyleRules( TidyDocImpl* doc, Node *node )
 {
     Node *child;
@@ -1649,7 +1623,7 @@ static void DefineStyleRules( TidyDocImpl* doc, Node *node )
 
 void TY_(PruneDocument)( TidyDocImpl* doc )
 {
-    PruneTree( doc, &doc->root );
+    PruneNode(doc, &doc->root);
 }
 
 void TY_(CleanDocument)( TidyDocImpl* doc )
