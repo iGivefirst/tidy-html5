@@ -1632,8 +1632,31 @@ Node* CollapseNodes( TidyDocImpl* doc, Node *node )
     return next;
 }
 
+DropCommentsAndScripts(TidyDocImpl* doc, Node* node)
+{
+    Node* next;
+
+    while (node)
+    {
+        next = node->next;
+
+        if (nodeIsCOMMENT(node) || nodeIsSCRIPT(node))
+        {
+            TY_(RemoveNode)(node);
+            TY_(FreeNode)(doc, node);
+            node = next;
+            continue;
+        }
+
+        if (node->content)
+            TY_(DropComments)(doc, node->content);
+
+        node = next;
+    }
+}
 void TY_(PruneDocument)( TidyDocImpl* doc )
 {
+    DropCommentsAndScripts(doc, &doc->root);
     CollapseNodes(doc, &doc->root);
     PruneNode(doc, &doc->root);
 }
