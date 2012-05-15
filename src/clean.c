@@ -1656,7 +1656,8 @@ DropCommentsAndScripts(TidyDocImpl* doc, Node* node)
 }
 void TY_(PruneDocument)( TidyDocImpl* doc )
 {
-    DropCommentsAndScripts(doc, &doc->root);
+    // todo: don't think we need this here
+    //DropCommentsAndScripts(doc, &doc->root);
     CollapseNodes(doc, &doc->root);
     PruneNode(doc, &doc->root);
 }
